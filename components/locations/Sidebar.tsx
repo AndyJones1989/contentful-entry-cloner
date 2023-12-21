@@ -16,7 +16,7 @@ const Sidebar = () => {
 
   const cloneEntry = async () => {
     const fields = sdk.entry.fields;
-    const contentType = sdk.contentType;
+
     const cma = createClient({
       apiAdapter: sdk.cmaAdapter,
     });
@@ -33,13 +33,13 @@ const Sidebar = () => {
       };
     }
 
-    console.log(transformedFields);
-
-    console.log(contentType.name);
-
-    const newEntry = await environment.createEntry(sdk.contentType.sys.id, {
-      fields: transformedFields,
-    });
+    const newEntry = await environment.createEntryWithId(
+      sdk.contentType.sys.id,
+      sdk.entry.getSys().id,
+      {
+        fields: transformedFields,
+      }
+    );
 
     await newEntry.publish();
   };
