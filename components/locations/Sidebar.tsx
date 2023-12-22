@@ -1,12 +1,36 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { SidebarAppSDK } from "@contentful/app-sdk";
 import { useSDK } from "@contentful/react-apps-toolkit";
-import { Button, Select, Option } from "@contentful/f36-components";
+import { Button, Select, Option, Spinner } from "@contentful/f36-components";
+import { FaceHappyIcon } from "@contentful/f36-icons";
 import { createClient } from "contentful-management";
+
+enum BuildStage {
+  notStarted = 0,
+  inProgress = 1,
+  completed = 2,
+}
+
+const buttonContentByStage = {
+  [BuildStage.notStarted]: "Clone Me!",
+  [BuildStage.inProgress]: <Spinner variant="white" />,
+  [BuildStage.completed]: <FaceHappyIcon variant="white" />,
+};
 
 const Sidebar = () => {
   const sdk = useSDK<SidebarAppSDK>();
   const [env, setEnv] = useState<string>("test");
+  const [filteredEnvs, setFilteredEnvs] = useState<string[]>([]);
+  const [buildStage, setBuildStage] = useState<BuildStage>(0);
+  const [entryAlreadyExists, setEntryAlreadyExists] = useState<boolean>(false);
+
+  useEffect(() => {
+    const potentialEnvs = ["Test", "Master"];
+    const filteredEnvs = potentialEnvs.filter(
+      (env) => env.toLowerCase() !== sdk.ids.environment
+    );
+    setFilteredEnvs(filteredEnvs);
+  }, [sdk.ids.environment]);
 
   const fieldsArray: string[] = [];
 
@@ -15,6 +39,8 @@ const Sidebar = () => {
   }
 
   const cloneEntry = async () => {
+    setEntryAlreadyExists(false);
+    setBuildStage(BuildStage.inProgress);
     const fields = sdk.entry.fields;
 
     const cma = createClient({
@@ -23,6 +49,21 @@ const Sidebar = () => {
 
     const space = await cma.getSpace(sdk.ids.space);
     const environment = await space.getEnvironment(env);
+
+    const displayFieldName = sdk.contentType.displayField;
+    const displayFieldValue = fields[displayFieldName].getValue("en-GB");
+
+    const existingEntries = await environment.getEntries({
+      ["fields." + displayFieldName]: displayFieldValue,
+      content_type: sdk.contentType.sys.id,
+    });
+
+    if (existingEntries.items.length > 0) {
+      console.log("An entry with the same displayField already exists.");
+      setEntryAlreadyExists(true);
+      setBuildStage(BuildStage.notStarted);
+      return;
+    }
 
     const transformedFields = {};
 
@@ -42,22 +83,33 @@ const Sidebar = () => {
     );
 
     await newEntry.publish();
+    setTimeout(() => {
+      setBuildStage(BuildStage.notStarted);
+    }, 5000);
   };
 
   const handleEnvSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setEnv(e.target.value.toLowerCase());
-    console.log(e.target.value);
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <p>Select an Env to clone to</p>
+      {entryAlreadyExists && (
+        <p style={{ color: "red" }}>
+          That entry already exists in the target env.
+        </p>
+      )}
       <Select name="environment" onChange={handleEnvSelect}>
-        <Option value="test">Test</Option>
-        <Option value="prod">Master</Option>
+        {filteredEnvs &&
+          filteredEnvs.map((env) => (
+            <Option key={env} value={env}>
+              {env}
+            </Option>
+          ))}
       </Select>
       <Button onClick={cloneEntry} variant="primary">
-        Clone Me!
+        {buttonContentByStage[buildStage]}
       </Button>
     </div>
   );
