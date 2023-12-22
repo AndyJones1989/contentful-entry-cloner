@@ -81,7 +81,7 @@ const Sidebar = () => {
         fields: transformedFields,
       }
     );
-
+    setBuildStage(BuildStage.completed);
     await newEntry.publish();
     setTimeout(() => {
       setBuildStage(BuildStage.notStarted);
